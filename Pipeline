@@ -1,0 +1,71 @@
+    pipeline {
+        agent any
+    
+        stages {
+    
+            stage("Clone") {
+                steps {
+                    git url: "https://github.com/bhardwajkartik/proshop-mern-k8s.git", branch: "main"
+                }
+            }
+    
+           stage("build backend"){
+               steps{
+                   sh "docker build -f backend/Dockerfile -t backend:latest ."
+               }
+           }
+               stage("push to docker hub"){
+                   steps{
+                       withCredentials([usernamePassword(
+                           credentialsId:"0543865kartik",
+                           passwordVariable:"dockerHubPass",
+                           usernameVariable:"dockerHubUser"
+                           )]){
+                       sh " echo $dockerHubPass|docker login -u $dockerHubUser --password-stdin"
+                       sh "docker image tag backend:latest 0543865kartik/back:latest"
+                       sh "docker push 0543865kartik/back:latest"
+                   }
+               }
+           }
+           stage("build frontend"){
+               steps{
+                   sh "docker build -f frontend/Dockerfile -t frontend:latest --no-cache frontend/"
+               }
+           }
+           stage("pushing to docker hub"){
+               steps{
+                   withCredentials([usernamePassword(
+                       credentialsId:"0543865kartik",
+                       passwordVariable:"dockerHubPass",
+                       usernameVariable:"dockerHubUser"
+                       )]){
+                            sh " echo $dockerHubPass|docker login -u $dockerHubUser --password-stdin"
+                              sh "docker image tag frontend:latest 0543865kartik/front:latest"
+                               sh "docker push 0543865kartik/front:latest"
+                       }
+                }
+             }
+               stage("deploy db in k8s"){
+                   steps{
+                       sh "kubectl apply -f k8s/sc.yml"
+                       sh "kubectl apply -f k8s/pv.yml"
+                       sh "kubectl apply -f k8s/headless.yml"
+                       sh "kubectl apply -f k8s/ss.yml"
+                   }
+               }
+               stage("deploy backend in k8s"){
+                   steps{
+                       sh "kubectl apply -f backend/dep.yml"
+                       sh "kubectl apply -f backend/svc.yml"
+                       sh "kubectl apply -f backend/scert.yml"
+                       sh "kubectl apply -f backend/conf.yml"
+                   }
+               }
+               stage("deply frontend in k8s"){
+                   steps{
+                       sh "kubectl apply -f frontend/de.yml"
+                       sh "kubectl apply -f frontend/svc.yml"
+                   }
+               }
+           }
+        }
